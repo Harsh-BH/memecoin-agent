@@ -5,10 +5,7 @@ const Navbar = () => {
   return (
     <nav className="fixed top-0 w-full z-50 bg-transparent backdrop-blur-sm border-b border-gray-700">
       <div className="max-w-7xl mx-auto px-8 py-4 flex justify-between items-center">
-      <link
-          href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
+     
         <div className="text-2xl font-bold text-white font-orbitron transition-all duration-500 hover:text-purple-400">
           MemeCoin Agent
         </div>
