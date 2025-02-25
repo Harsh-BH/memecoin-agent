@@ -17,10 +17,7 @@ export default function HomePage() {
       <Head>
         <title>MemeCoin Agent - Sci-Fi Edition</title>
         {/* Sci-Fi fonts: Orbitron for headings and Roboto Mono for body */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
+        
       </Head>
       <Navbar />
       <CursorTrail />

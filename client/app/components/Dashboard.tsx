@@ -14,7 +14,7 @@ const Dashboard = () => {
         params: { account }
       });
       setBalance(response.data.balance);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Error fetching balance');
       console.error(err);
     }
