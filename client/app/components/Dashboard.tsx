@@ -21,7 +21,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="bg-white shadow-md rounded p-6 max-w-md mx-auto">
+    <div className="bg-white shadow-md rounded p-6 max-w-md mx-auto min-h-screen">
       <div className="mb-4">
         <label htmlFor="account" className="block text-sm font-medium text-gray-700">
           NEAR Account
@@ -33,7 +33,7 @@ const Dashboard = () => {
           onChange={(e) => setAccount(e.target.value)}
           className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
           placeholder="your-account.testnet"
-        />
+        />~
       </div>
       <button
         onClick={fetchBalance}
