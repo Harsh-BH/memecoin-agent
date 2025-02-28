@@ -1,0 +1,33 @@
+model:
+  model_name: "gpt-4-turbo"
+  api_url: "https://api.openai.com/v1/chat/completions"
+  max_prompt_tokens: 128000
+  max_completion_tokens: 4096
+  temperature: 0.7
+  top_p: 0.9
+  top_k: null
+  api_headers:
+    Authorization: "Bearer ${OPENAI_API_KEY}"
+    Content-Type: "application/json"
+
+agent:
+  max_completion_tries: 3
+  max_recurse_depth: 5
+  system_prompt_template: "config/system_prompt.yaml"
+
+chat_ml:
+  user_prepend: "<|im_start|>user\n"
+  user_append: "<|im_end|>\n"
+  assistant_prepend: "<|im_start|>assistant\n"
+  assistant_append: "<|im_end|>\n"
+  stop_sequences:
+    - "<|im_end|>"
+    - "<|endoftext|>"
+
+logging:
+  level: "DEBUG"
+  log_file: "logs/agent.log"
+
+rate_limit:
+  requests_per_minute: 60
+  burst_limit: 10

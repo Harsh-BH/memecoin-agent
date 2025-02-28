@@ -19,10 +19,11 @@ export default function HomePage() {
         {/* Sci-Fi fonts: Orbitron for headings and Roboto Mono for body */}
         
       </Head>
-      <Navbar />
+      
       <CursorTrail />
-      <main className="relative min-h-screen flex flex-col items-center justify-center font-roboto bg-gradient-to-br from-black via-gray-900 to-black overflow-hidden scroll-smooth">
+      <main className="relative min-h-screen flex flex-col items-center justify-center font-roboto bg-gradient-to-br from-black via-gray-900 to-black overflow-hidden scroll-smooth ">
         {/* Texture Overlay */}
+        <Navbar />
         <div className="absolute inset-0 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] opacity-25"></div>
 
         {/* Animated Background Shapes */}
@@ -46,7 +47,7 @@ export default function HomePage() {
         </div>
 
         {/* Main Hero Content */}
-        <div className="relative z-10 text-center px-6">
+        <div className="relative  text-center px-6">
           <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 animate-neonGlow">
             Welcome to MemeCoin Agent
           </h1>

@@ -9,31 +9,61 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@near-wallet-selector/bitte-wallet": "8.9.15",
+    "@near-wallet-selector/core": "8.9.15",
+    "@near-wallet-selector/here-wallet": "8.9.15",
+    "@near-wallet-selector/ledger": "8.9.15",
+    "@near-wallet-selector/meteor-wallet": "8.9.15",
+    "@near-wallet-selector/modal-ui": "8.9.15",
+    "@near-wallet-selector/my-near-wallet": "8.9.15",
+    "@near-wallet-selector/nightly": "8.9.15",
+    "@near-wallet-selector/react-hook": "8.9.15",
     "@radix-ui/react-separator": "^1.1.2",
     "@radix-ui/react-slot": "^1.1.2",
+    "@rainbow-me/rainbowkit": "^2.2.4",
+    "@reown/appkit": "^1.6.8",
+    "@reown/appkit-adapter-wagmi": "^1.6.8",
+    "@reown/walletkit": "^1.2.1",
+    "@tanstack/react-query": "^5.66.9",
+    "@walletconnect/core": "^2.18.1",
+    "@walletconnect/utils": "^2.18.1",
     "axios": "^1.7.9",
+    "borsh": "0.7.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.4.7",
     "lucide-react": "^0.476.0",
+    "mdb-react-ui-kit": "^9.0.0",
+    "mdb-ui-kit": "^8.2.0",
+    "near-api-js": "4.0.3",
     "next": "15.1.7",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
     "react-icons": "^5.5.0",
     "recharts": "^2.15.1",
+    "signet.js": "^0.0.1",
+    "socket.io-client": "^4.8.1",
     "tailwind-merge": "^3.0.2",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "uuid": "^11.1.0",
+    "viem": "~2.23.5",
+    "wagmi": "^2.13.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
     "eslint": "^9",
     "eslint-config-next": "15.1.7",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@near-wallet-selector/ethereum-wallets": {
+      "near-api-js": "2.0.0"
+    }
   },
   "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af"
 }
