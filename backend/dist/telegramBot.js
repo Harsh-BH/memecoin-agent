@@ -32,6 +32,7 @@ dotenv.config();
 const node_telegram_bot_api_1 = __importDefault(require("node-telegram-bot-api"));
 const huggingFaceStableDiffusion_1 = require("./huggingFaceStableDiffusion");
 const near_api_js_1 = require("near-api-js");
+const aiChat_1 = require("./aiChat");
 // ----- NEAR CONFIGURATION -----
 const nearConfig = {
     networkId: 'testnet',
@@ -43,49 +44,104 @@ const nearConfig = {
 // Environment variables
 const ACCOUNT_ID = process.env.NEAR_ACCOUNT_ID;
 console.log("account id", ACCOUNT_ID);
-const PRIVATE_KEY = process.env.NEAR_ACCOUNT_PRIVATE_KEY; // your private key
-const CONTRACT_ID = process.env.NEAR_CONTRACT_NAME;
-console.log("contract id", CONTRACT_ID); // e.g. "your-contract.testnet"
+const PRIVATE_KEY = process.env.NEAR_ACCOUNT_PRIVATE_KEY;
+const DEFAULT_CONTRACT_ID = process.env.NEAR_CONTRACT_NAME;
+console.log("Default contract id", DEFAULT_CONTRACT_ID);
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-// Save key to keyStore
+// Setup NEAR keys
 const keyPair = near_api_js_1.KeyPair.fromString(PRIVATE_KEY);
 nearConfig.keyStore.setKey(nearConfig.networkId, ACCOUNT_ID, keyPair);
 // Initialize Telegram bot
 const bot = new node_telegram_bot_api_1.default(BOT_TOKEN, { polling: true });
+// We'll store user data about the last meme prompt if they want to mint it as NFT.
 const pendingNftRequests = {};
-// ----- INITIALIZE NEAR AND THE CONTRACT -----
+// Global references so we can switch contract ID
+let nearGlobal;
+let accountGlobal;
+let contractGlobal; // We'll reassign this if user calls /setContract
+// ----- INITIALIZE NEAR & DEFAULT CONTRACT -----
 async function initNear() {
-    const near = await (0, near_api_js_1.connect)(nearConfig);
-    const account = await near.account(ACCOUNT_ID);
-    // Instantiate the contract; list view and change methods as needed.
-    const contract = new near_api_js_1.Contract(account, CONTRACT_ID, {
+    nearGlobal = await (0, near_api_js_1.connect)(nearConfig);
+    accountGlobal = await nearGlobal.account(ACCOUNT_ID);
+    // Instantiate default contract
+    contractGlobal = new near_api_js_1.Contract(accountGlobal, DEFAULT_CONTRACT_ID, {
         viewMethods: ['get_balance', 'get_total_supply', 'get_top_tipper'],
-        changeMethods: ['mint', 'tip', 'withdraw', 'burn', 'stake', 'unstake', 'claim_rewards', 'register_referral', 'propose', 'vote', 'finalize_proposal', 'nft_mint'],
+        changeMethods: [
+            'mint',
+            'tip',
+            'withdraw',
+            'burn',
+            'stake',
+            'unstake',
+            'claim_rewards',
+            'register_referral',
+            'propose',
+            'vote',
+            'finalize_proposal',
+            'nft_mint',
+        ],
     });
-    return { account, contract };
 }
+// Re-initialize contract with a new contractId
+async function reinitContract(newContractId) {
+    // Reuse same account but point to new contract ID
+    contractGlobal = new near_api_js_1.Contract(accountGlobal, newContractId, {
+        viewMethods: ['get_balance', 'get_total_supply', 'get_top_tipper'],
+        changeMethods: [
+            'mint',
+            'tip',
+            'withdraw',
+            'burn',
+            'stake',
+            'unstake',
+            'claim_rewards',
+            'register_referral',
+            'propose',
+            'vote',
+            'finalize_proposal',
+            'nft_mint',
+        ],
+    });
+    console.log(`Switched contract to: ${newContractId}`);
+}
+// Helper function: simulate "typing" for a short delay
+const simulateTyping = async (chatId, ms = 1500) => {
+    await bot.sendChatAction(chatId, 'typing');
+    return new Promise((resolve) => setTimeout(resolve, ms));
+};
 initNear()
-    .then(({ contract }) => {
-    // Helper function to simulate a short typing delay
-    const simulateTyping = async (chatId, ms = 1500) => {
-        // Indicate the bot is typing
-        await bot.sendChatAction(chatId, 'typing');
-        // Wait the specified milliseconds
-        return new Promise((resolve) => setTimeout(resolve, ms));
-    };
+    .then(() => {
+    // ---------- Handle all incoming messages ----------
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id;
         const text = (msg.text || '').trim();
         console.log("Received command:", text);
-        // ============= EXAMPLE COMMANDS =============
+        // NEW: /setContract <contractId> 
+        // Switch to a different contract ID
+        if (text.startsWith('/setContract')) {
+            const parts = text.split(' ');
+            if (parts.length < 2) {
+                await bot.sendMessage(chatId, 'Usage: /setContract <contractId>');
+                return;
+            }
+            const newContractId = parts[1];
+            try {
+                await reinitContract(newContractId);
+                await bot.sendMessage(chatId, `✅ Contract ID switched to: ${newContractId}`);
+            }
+            catch (error) {
+                console.error('Error switching contract:', error);
+                await bot.sendMessage(chatId, '⚠️ Failed to switch contract ID.');
+            }
+            return;
+        }
         // 1) MINT
         if (text.startsWith('/mint')) {
             const parts = text.split(' ');
-            const depositAmount = parts[1] || '10000000000000000'; // 0.01 NEAR in yocto
+            const depositAmount = parts[1] || '10000000000000000'; // default 0.01 NEAR
             try {
-                // Simulate typing
                 await simulateTyping(chatId, 1000);
-                await contract.mint({
+                await contractGlobal.mint({
                     args: {},
                     gas: "300000000000000",
                     amount: depositAmount,
@@ -108,7 +164,7 @@ initNear()
             const accountParam = parts[1];
             try {
                 await simulateTyping(chatId);
-                const balance = await contract.get_balance({ account: accountParam });
+                const balance = await contractGlobal.get_balance({ account: accountParam });
                 await bot.sendMessage(chatId, `💰 The token balance for *${accountParam}* is: \`${balance}\``, { parse_mode: 'Markdown' });
             }
             catch (error) {
@@ -121,7 +177,7 @@ initNear()
         if (text.startsWith('/totalSupply')) {
             try {
                 await simulateTyping(chatId);
-                const totalSupply = await contract.get_total_supply();
+                const totalSupply = await contractGlobal.get_total_supply();
                 await bot.sendMessage(chatId, `🏦 *Total Token Supply:* \`${totalSupply}\``, { parse_mode: 'Markdown' });
             }
             catch (error) {
@@ -134,7 +190,7 @@ initNear()
         if (text.startsWith('/topTipper')) {
             try {
                 await simulateTyping(chatId);
-                const topTipper = await contract.get_top_tipper();
+                const topTipper = await contractGlobal.get_top_tipper();
                 await bot.sendMessage(chatId, `🏆 The top tipper is: *${topTipper || 'No tipper yet'}*`, { parse_mode: 'Markdown' });
             }
             catch (error) {
@@ -143,7 +199,7 @@ initNear()
             }
             return;
         }
-        // ----- TIP -----
+        // 5) TIP
         if (text.startsWith('/tip')) {
             const parts = text.split(' ');
             if (parts.length < 3) {
@@ -153,9 +209,9 @@ initNear()
             const receiver = parts[1];
             const amount = parts[2];
             try {
-                await contract.tip({
+                await contractGlobal.tip({
                     args: { receiver, amount },
-                    gas: "300000000000000", // 300 TGas
+                    gas: "300000000000000",
                 });
                 await bot.sendMessage(chatId, `Successfully tipped ${amount} tokens to ${receiver}`);
             }
@@ -165,7 +221,7 @@ initNear()
             }
             return;
         }
-        // ----- WITHDRAW -----
+        // 6) WITHDRAW
         if (text.startsWith('/withdraw')) {
             const parts = text.split(' ');
             if (parts.length < 2) {
@@ -174,9 +230,9 @@ initNear()
             }
             const amount = parts[1];
             try {
-                await contract.withdraw({
+                await contractGlobal.withdraw({
                     args: { amount },
-                    gas: "300000000000000", // adjust if necessary
+                    gas: "300000000000000",
                 });
                 await bot.sendMessage(chatId, `Successfully withdrew ${amount} tokens`);
             }
@@ -186,7 +242,7 @@ initNear()
             }
             return;
         }
-        // ----- BURN -----
+        // 7) BURN
         if (text.startsWith('/burn')) {
             const parts = text.split(' ');
             if (parts.length < 2) {
@@ -195,7 +251,7 @@ initNear()
             }
             const amount = parts[1];
             try {
-                await contract.burn({
+                await contractGlobal.burn({
                     args: { amount },
                     gas: "300000000000000",
                 });
@@ -207,7 +263,7 @@ initNear()
             }
             return;
         }
-        // ----- STAKE -----
+        // 8) STAKE
         if (text.startsWith('/stake')) {
             const parts = text.split(' ');
             if (parts.length < 2) {
@@ -216,10 +272,10 @@ initNear()
             }
             const amount = parts[1];
             try {
-                await contract.stake({
+                await contractGlobal.stake({
                     args: { amount },
                     gas: "300000000000000",
-                    amount: "1", // if any attached deposit is required, adjust accordingly
+                    amount: "1",
                 });
                 await bot.sendMessage(chatId, `Successfully staked ${amount} tokens`);
             }
@@ -229,7 +285,7 @@ initNear()
             }
             return;
         }
-        // ----- UNSTAKE -----
+        // 9) UNSTAKE
         if (text.startsWith('/unstake')) {
             const parts = text.split(' ');
             if (parts.length < 2) {
@@ -238,7 +294,7 @@ initNear()
             }
             const amount = parts[1];
             try {
-                await contract.unstake({
+                await contractGlobal.unstake({
                     args: { amount },
                     gas: "300000000000000",
                 });
@@ -250,10 +306,10 @@ initNear()
             }
             return;
         }
-        // ----- CLAIM REWARDS -----
+        // 10) CLAIM REWARDS
         if (text.startsWith('/claim_rewards')) {
             try {
-                await contract.claim_rewards({
+                await contractGlobal.claim_rewards({
                     args: {},
                     gas: "300000000000000",
                 });
@@ -265,7 +321,7 @@ initNear()
             }
             return;
         }
-        // ----- REGISTER REFERRAL -----
+        // 11) REGISTER REFERRAL
         if (text.startsWith('/register_referral')) {
             const parts = text.split(' ');
             if (parts.length < 2) {
@@ -274,7 +330,7 @@ initNear()
             }
             const referrer = parts[1];
             try {
-                await contract.register_referral({
+                await contractGlobal.register_referral({
                     args: { referrer },
                     gas: "300000000000000",
                 });
@@ -286,19 +342,18 @@ initNear()
             }
             return;
         }
-        // ----- PROPOSE (Admin Only) -----
+        // 12) PROPOSE (Admin Only)
         if (text.startsWith('/propose')) {
-            // The proposal description is everything after the command.
             const proposalDescription = text.slice('/propose'.length).trim();
             if (!proposalDescription) {
                 await bot.sendMessage(chatId, 'Usage: /propose <proposal description>');
                 return;
             }
             try {
-                await contract.propose({
+                await contractGlobal.propose({
                     args: { description: proposalDescription },
                     gas: "300000000000000",
-                    amount: "1", // if any attached deposit is required, adjust accordingly
+                    amount: "1",
                 });
                 await bot.sendMessage(chatId, `Proposal created: "${proposalDescription}"`);
             }
@@ -308,7 +363,7 @@ initNear()
             }
             return;
         }
-        // ----- VOTE -----
+        // 13) VOTE
         if (text.startsWith('/vote')) {
             const parts = text.split(' ');
             if (parts.length < 3) {
@@ -318,7 +373,7 @@ initNear()
             const proposalId = parseInt(parts[1]);
             const support = parts[2].toLowerCase() === 'true';
             try {
-                await contract.vote({
+                await contractGlobal.vote({
                     args: { proposal_id: proposalId, support },
                     gas: "300000000000000",
                 });
@@ -330,7 +385,7 @@ initNear()
             }
             return;
         }
-        // ----- FINALIZE PROPOSAL (Admin Only) -----
+        // 14) FINALIZE PROPOSAL
         if (text.startsWith('/finalize_proposal')) {
             const parts = text.split(' ');
             if (parts.length < 2) {
@@ -339,7 +394,7 @@ initNear()
             }
             const proposalId = parseInt(parts[1]);
             try {
-                await contract.finalize_proposal({
+                await contractGlobal.finalize_proposal({
                     args: { proposal_id: proposalId },
                     gas: "300000000000000",
                 });
@@ -351,7 +406,43 @@ initNear()
             }
             return;
         }
-        //  NFT MINT
+        // 15) Meme Generation: /meme <prompt>
+        if (text.startsWith('/meme')) {
+            const prompt = text.slice('/meme'.length).trim();
+            if (!prompt) {
+                await bot.sendMessage(chatId, 'Usage: /meme <prompt>');
+                return;
+            }
+            try {
+                await simulateTyping(chatId, 2000);
+                // 1) Generate the meme image
+                const imageBuffer = await (0, huggingFaceStableDiffusion_1.generateMemeImage)(prompt);
+                // 2) Send the image
+                await bot.sendPhoto(chatId, imageBuffer, {
+                    caption: '✨ *Here is your meme image!* ✨',
+                    parse_mode: 'Markdown',
+                });
+                // 3) Store the prompt in memory so we can mint NFT if user wants
+                pendingNftRequests[chatId] = prompt;
+                // 4) Ask user if they'd like to mint the meme as NFT
+                await bot.sendMessage(chatId, 'Do you want to mint this meme as an NFT?', {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                { text: 'Yes, mint NFT', callback_data: 'meme_nft_yes' },
+                                { text: 'No, thanks', callback_data: 'meme_nft_no' },
+                            ],
+                        ],
+                    },
+                });
+            }
+            catch (error) {
+                console.error('Error generating meme image:', error);
+                await bot.sendMessage(chatId, '⚠️ *Sorry, an error occurred while generating your meme image.*', { parse_mode: 'Markdown' });
+            }
+            return;
+        }
+        // 16) NFT MINT: /nft_mint <metadata> (Manual usage)
         if (text.startsWith('/nft_mint')) {
             const metadata = text.slice('/nft_mint'.length).trim();
             if (!metadata) {
@@ -360,11 +451,10 @@ initNear()
             }
             try {
                 await simulateTyping(chatId, 1500);
-                // Use at least 2 yoctoNEAR to pass deposit_amount > 1
-                await contract.nft_mint({
+                await contractGlobal.nft_mint({
                     args: { metadata },
                     gas: "300000000000000",
-                    amount: "2", // 2 yocto, or "10000000000000000000000000" for 10 NEAR
+                    amount: "2",
                 });
                 await bot.sendMessage(chatId, `🖼️ *NFT minted!* \nMetadata: \`${metadata}\``, { parse_mode: 'Markdown' });
             }
@@ -374,73 +464,58 @@ initNear()
             }
             return;
         }
-        // ============= FALLBACK: Meme Image Generation =============
-        try {
-            // Indicate the bot is "thinking"
-            await simulateTyping(chatId, 2000);
-            // 1) Generate the image from the prompt
-            const imageBuffer = await (0, huggingFaceStableDiffusion_1.generateMemeImage)(text);
-            // 2) Send the image
-            await bot.sendPhoto(chatId, imageBuffer, {
-                caption: '✨ *Here is your meme image!* ✨',
-                parse_mode: 'Markdown',
-            });
-            // 3) Store the prompt for potential NFT mint
-            pendingNftRequests[chatId] = text;
-            // 4) Ask user if they want to mint as NFT
-            await bot.sendMessage(chatId, 'Do you want to mint this as an NFT?', {
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            { text: 'Yes 🪄', callback_data: 'mint_yes' },
-                            { text: 'No 🚫', callback_data: 'mint_no' },
-                        ],
-                    ],
-                },
-            });
-        }
-        catch (error) {
-            console.error('Error generating meme image:', error);
-            await bot.sendMessage(chatId, '⚠️ *Sorry, an error occurred while generating your meme image.*', { parse_mode: 'Markdown' });
+        // ============= AI BLOCKCHAIN CHATBOT =============
+        // If message doesn't match any slash command, treat it as a blockchain question
+        if (!text.startsWith('/')) {
+            try {
+                await simulateTyping(chatId, 1500);
+                const aiResponse = await (0, aiChat_1.getBlockchainAnswer)(text);
+                await bot.sendMessage(chatId, `🤖 ${aiResponse}`);
+            }
+            catch (error) {
+                console.error('Error in AI chatbot:', error);
+                await bot.sendMessage(chatId, '⚠️ Error retrieving AI answer.');
+            }
+            return;
         }
     });
-    // Handle the inline keyboard responses
+    // ---------- Handle Inline Keyboard Responses (for Meme NFT) ----------
     bot.on('callback_query', async (callbackQuery) => {
         const chatId = callbackQuery.message?.chat.id;
-        const data = callbackQuery.data; // 'mint_yes' or 'mint_no'
+        const data = callbackQuery.data;
         if (!chatId)
             return;
-        if (data === 'mint_no') {
-            // If user says "No," remove from pending requests
+        if (data === 'meme_nft_no') {
+            // user says "No, thanks"
             await bot.answerCallbackQuery(callbackQuery.id, { text: 'NFT mint canceled.' });
             delete pendingNftRequests[chatId];
             return;
         }
-        if (data === 'mint_yes') {
+        if (data === 'meme_nft_yes') {
+            // user wants to mint the meme as NFT
             await bot.answerCallbackQuery(callbackQuery.id, { text: 'Minting NFT...' });
-            // Retrieve the prompt/metadata
-            const metadata = pendingNftRequests[chatId];
-            if (!metadata) {
-                await bot.sendMessage(chatId, '⚠️ Sorry, I have no data to mint.');
+            const prompt = pendingNftRequests[chatId];
+            if (!prompt) {
+                await bot.sendMessage(chatId, 'No meme prompt found to mint.');
                 return;
             }
             try {
-                // Simulate short typing
+                // We can simulate short typing
                 await bot.sendChatAction(chatId, 'typing');
                 await new Promise((res) => setTimeout(res, 1500));
-                // Attach deposit to pass the "deposit_amount > 1" check
-                await contract.nft_mint({
-                    args: { metadata },
+                // Mint NFT with the prompt as metadata
+                await contractGlobal.nft_mint({
+                    args: { metadata: `Meme minted with prompt: ${prompt}` },
                     gas: "300000000000000",
-                    amount: "2", // minimal pass, or more
+                    amount: "2", // 2 yocto, or more if needed
                 });
-                await bot.sendMessage(chatId, `🪄 *NFT minted successfully!* \nMetadata: \`${metadata}\``, { parse_mode: 'Markdown' });
+                await bot.sendMessage(chatId, '🎉 NFT minted for your meme!');
             }
             catch (error) {
                 console.error('Error minting NFT:', error);
                 await bot.sendMessage(chatId, '⚠️ Error minting NFT.');
             }
-            // Clean up
+            // cleanup
             delete pendingNftRequests[chatId];
         }
     });
