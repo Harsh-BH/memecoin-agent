@@ -1,9 +1,6 @@
 "use client"
 import './globals.css';
-
 import { ReactNode } from 'react';
-import '@rainbow-me/rainbowkit/styles.css';
-import ContextProvider from './providers';
 import { setupBitteWallet } from "@near-wallet-selector/bitte-wallet";
 import { setupLedger } from "@near-wallet-selector/ledger";
 import { setupMeteorWallet } from "@near-wallet-selector/meteor-wallet";

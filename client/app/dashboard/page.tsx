@@ -5,9 +5,10 @@ import Navbar from "../components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { useNearAnalyticsFromAccount } from "./useNearAnalytics";
-import { setupWalletSelector } from "@near-wallet-selector/core";
-import { setupMyNearWallet } from "@near-wallet-selector/my-near-wallet";
+import { useNearAnalyticsFromAccount } from "./useNearAnalyticsFromAccount.client";
+// Remove top-level imports of wallet selector libraries:
+// import { setupWalletSelector } from "@near-wallet-selector/core";
+// import { setupMyNearWallet } from "@near-wallet-selector/my-near-wallet";
 import {
   ResponsiveContainer,
   LineChart,
@@ -31,7 +32,6 @@ function formatYoctoToNear(yoctoValue: string | number, fractionDigits = 5): str
 function getDateStringFromNs(blockTimestampNs: string | number): string {
   const ns = typeof blockTimestampNs === "number" ? blockTimestampNs : parseFloat(blockTimestampNs);
   const dateObj = new Date(ns / 1_000_000); // convert nanoseconds to ms
-  // Format as e.g. "2025-03-01"
   const year = dateObj.getFullYear();
   const month = String(dateObj.getMonth() + 1).padStart(2, "0");
   const day = String(dateObj.getDate()).padStart(2, "0");
@@ -39,6 +39,21 @@ function getDateStringFromNs(blockTimestampNs: string | number): string {
 }
 
 const CONTRACT_ID = "harsh21112005.testnet";
+
+interface ActivityItem {
+  fullData: unknown;
+  id: string | number;
+  type: string;
+  description: string;
+  date: string;
+}
+
+interface MintChartData {
+  day: string;
+  minted: number;
+}
+
+type NearBlocksTransaction = unknown;
 
 export default function MemeCoinDashboard() {
   // A. State for manual account input
@@ -49,14 +64,19 @@ export default function MemeCoinDashboard() {
     useNearAnalyticsFromAccount(manualAccount);
 
   // C. Activity feed
-  const [activityFeed, setActivityFeed] = useState<any[]>([]);
+  const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([]);
   // D. Chart data for minted amounts by day
-  const [mintChartData, setMintChartData] = useState<any[]>([]);
+  const [mintChartData, setMintChartData] = useState<MintChartData[]>([]);
   // E. Selected transaction for popup
-  const [selectedTx, setSelectedTx] = useState<any | null>(null);
+  const [selectedTx, setSelectedTx] = useState<NearBlocksTransaction | null>(null);
 
   // F. Helper: wallet
+  // Dynamically import the wallet selector libraries so they only run client-side
   async function getWallet() {
+    if (typeof window === "undefined") return null;
+    const { setupWalletSelector } = await import("@near-wallet-selector/core");
+    const { setupMyNearWallet } = await import("@near-wallet-selector/my-near-wallet");
+
     const selector = await setupWalletSelector({
       network: "testnet",
       modules: [setupMyNearWallet()],
@@ -68,6 +88,10 @@ export default function MemeCoinDashboard() {
   const handleMint = async () => {
     try {
       const wallet = await getWallet();
+      if (!wallet) {
+        alert("Wallet not available on server. Please try again in the browser.");
+        return;
+      }
       await wallet.signAndSendTransaction({
         receiverId: CONTRACT_ID,
         actions: [
@@ -93,6 +117,10 @@ export default function MemeCoinDashboard() {
   const handleTransfer = async () => {
     try {
       const wallet = await getWallet();
+      if (!wallet) {
+        alert("Wallet not available on server. Please try again in the browser.");
+        return;
+      }
       await wallet.signAndSendTransaction({
         receiverId: CONTRACT_ID,
         actions: [
@@ -121,7 +149,7 @@ export default function MemeCoinDashboard() {
   useEffect(() => {
     async function fetchTransactions() {
       try {
-        // You can use `account` or a hardcoded account
+        if (!account) return;
         const accountId = account;
         const url = `https://api-testnet.nearblocks.io/v1/account/${accountId}/txns`;
         const response = await fetch(url);
@@ -131,8 +159,7 @@ export default function MemeCoinDashboard() {
         const data = await response.json();
         const rawTxs = data.txns || [];
 
-        // Build feed and chart data
-        const feed = [];
+        const feed: ActivityItem[] = [];
         const mintedByDay: Record<string, number> = {};
 
         for (const tx of rawTxs) {
@@ -141,23 +168,22 @@ export default function MemeCoinDashboard() {
           const rawDeposit = action?.deposit || "0";
           const depositNear = parseFloat(formatYoctoToNear(rawDeposit, 5));
 
-          // Convert block timestamp to date
           const blockTimeNs = tx.receipt_block?.block_timestamp;
           const dateString = blockTimeNs ? getDateStringFromNs(blockTimeNs) : "N/A";
 
-          // Build short description
           let desc = `Action: ${actionType}, deposit: ${depositNear} NEAR`;
           if (action?.method) {
             desc += `, method: ${action.method}`;
           }
 
-          // For feed
           feed.push({
             fullData: tx,
             id: tx.id,
             type: actionType,
             description: desc,
-            date: new Date(blockTimeNs / 1_000_000).toLocaleString(),
+            date: blockTimeNs
+              ? new Date(blockTimeNs / 1_000_000).toLocaleString()
+              : "N/A",
           });
 
           // If it's a "FUNCTION_CALL" + "method === mint", add to mintedByDay
@@ -166,13 +192,10 @@ export default function MemeCoinDashboard() {
           }
         }
 
-        // Convert mintedByDay object to array for Recharts
-        // e.g. { "2025-03-01": 10, "2025-03-02": 3.5 }
         const mintedData = Object.keys(mintedByDay).map((day) => ({
           day,
-          minted: Number(mintedByDay[day].toFixed(2)), // e.g. 2 decimals
+          minted: Number(mintedByDay[day].toFixed(2)),
         }));
-        // Sort mintedData by day if you want chronological order
         mintedData.sort((a, b) => (a.day > b.day ? 1 : -1));
 
         setActivityFeed(feed);
@@ -437,7 +460,7 @@ export default function MemeCoinDashboard() {
 
       {/* Popup modal to show full transaction if clicked */}
       <AnimatePresence>
-        {selectedTx && (
+        {selectedTx !== null && (
           <motion.div
             className="fixed inset-0 z-[9999] flex items-center justify-center"
             initial={{ opacity: 0 }}
