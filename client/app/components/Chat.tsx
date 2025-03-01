@@ -4,7 +4,6 @@ import {
   MDBCardBody,
   MDBCardFooter,
   MDBCardHeader,
-  MDBIcon,
 } from "mdb-react-ui-kit";
 import { v4 as uuidv4 } from "uuid";
 import socket from "../socket"; // adjust path
