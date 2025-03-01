@@ -1,5 +1,5 @@
 // huggingFaceStableDiffusion.ts
-import { HfInference } from "@huggingface/inference";
+import fetch from "node-fetch"; // For Node <18. If on Node 18+, you can use global fetch
 import * as dotenv from "dotenv";
 dotenv.config();
 
@@ -8,8 +8,6 @@ if (!hfApiKey) {
   throw new Error("Missing HF_API_TOKEN environment variable");
 }
 
-const client = new HfInference(hfApiKey);
-
 /**
  * Generates an image using Hugging Face's Stable Diffusion 3.5 model.
  * @param prompt - The prompt text for image generation.
@@ -17,18 +15,37 @@ const client = new HfInference(hfApiKey);
  */
 export async function generateMemeImage(prompt: string): Promise<Buffer> {
   try {
-    const imageBlob = await client.textToImage({
-      model: "stabilityai/stable-diffusion-3.5-large",
+    const url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-3.5-large";
+    const headers = {
+      "Authorization": `Bearer ${hfApiKey}`,
+      "Content-Type": "application/json",
+    };
+
+    // We'll pass our prompt in JSON format
+    const body = JSON.stringify({
       inputs: prompt,
       parameters: { num_inference_steps: 5 },
-      // Removed provider parameter as it may be unnecessary or unsupported
     });
-    
-    // Convert the Blob into an ArrayBuffer, then to a Buffer
-    const arrayBuffer = await imageBlob.arrayBuffer();
+
+    // Make a raw POST request with fetch
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body,
+    });
+
+    if (!response.ok) {
+      // If the request failed, parse the error text (likely JSON) to see the reason
+      const errorMsg = await response.text();
+      throw new Error(`Hugging Face error: ${errorMsg}`);
+    }
+
+    // If success, the response is binary image data. Convert to ArrayBuffer -> Buffer.
+    const arrayBuffer = await response.arrayBuffer();
     return Buffer.from(arrayBuffer);
-  } catch (error: any) {
-    console.error("Error generating image:", error.response?.data || error.message);
+
+  } catch (error) {
+    console.error("Error generating image:", error);
     throw error;
   }
 }

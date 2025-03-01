@@ -15,7 +15,7 @@
     "@near-wallet-selector/ledger": "8.9.15",
     "@near-wallet-selector/meteor-wallet": "8.9.15",
     "@near-wallet-selector/modal-ui": "8.9.15",
-    "@near-wallet-selector/my-near-wallet": "8.9.15",
+    "@near-wallet-selector/my-near-wallet": "^8.9.15",
     "@near-wallet-selector/nightly": "8.9.15",
     "@near-wallet-selector/react-hook": "8.9.15",
     "@radix-ui/react-separator": "^1.1.2",
