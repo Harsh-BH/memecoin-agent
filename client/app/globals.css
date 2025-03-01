@@ -9,6 +9,7 @@ html, body {
   padding: 0;
   background-color: transparent; /* or #000 */
   min-height: 100%;
+  font-family: 'Orbitron', sans-serif;
 }
 
 

@@ -4,32 +4,43 @@ import {
   MDBCardBody,
   MDBCardFooter,
   MDBCardHeader,
-  MDBCol,
-  MDBContainer,
   MDBIcon,
-  MDBRow,
 } from "mdb-react-ui-kit";
 import { v4 as uuidv4 } from "uuid";
-import socket from "../socket"; // Adjust path based on your project
+import socket from "../socket"; // adjust path
+import { motion } from "framer-motion";
+import "./Chat.css"; // custom styles
+
+interface Message {
+  content: string;
+  id: string;
+}
+
+interface MessageGroup {
+  id: string;
+  author: "user" | "ai";
+  messages: Message[];
+}
 
 const Chat: React.FC = () => {
-  const [inputValue, setInputValue] = useState<string>("");
+  const [inputValue, setInputValue] = useState("");
   const [messageGroups, setMessageGroups] = useState<MessageGroup[]>([]);
   const messageGroupsRef = useRef<MessageGroup[]>([]);
+
   messageGroupsRef.current = messageGroups;
 
   const addNewMessage = (author: "user" | "ai", content: string) => {
     const groups = messageGroupsRef.current;
     if (groups.length > 0) {
-      const lastMessageGroup = { ...groups[groups.length - 1] };
-      if (lastMessageGroup.author === author) {
-        lastMessageGroup.messages.push({ content, id: uuidv4() });
-        setMessageGroups((oldGroups) => [...oldGroups.slice(0, -1), lastMessageGroup]);
+      const last = groups[groups.length - 1];
+      if (last.author === author) {
+        last.messages.push({ content, id: uuidv4() });
+        setMessageGroups([...groups.slice(0, -1), last]);
         return;
       }
     }
-    setMessageGroups((oldMessageGroups) => [
-      ...oldMessageGroups,
+    setMessageGroups([
+      ...messageGroups,
       { author, messages: [{ content, id: uuidv4() }], id: uuidv4() },
     ]);
   };
@@ -44,13 +55,8 @@ const Chat: React.FC = () => {
 
   useEffect(() => {
     socket.connect();
-
-    const onResponse = (value: string) => {
-      addNewMessage("ai", value);
-    };
-
+    const onResponse = (value: string) => addNewMessage("ai", value);
     socket.on("response", onResponse);
-
     return () => {
       socket.off("response", onResponse);
       socket.disconnect();
@@ -58,112 +64,84 @@ const Chat: React.FC = () => {
   }, []);
 
   return (
-    <MDBContainer
-      fluid
-      className="fixed bottom-0 right-0 w-96 z-50 bg-white shadow-xl border rounded-lg"
-      style={{
-        zIndex: 9999,
-        position: "fixed",
-        bottom: "20px",
-        right: "20px",
-        borderRadius: "15px",
-        boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.25)",
-        pointerEvents: "auto", // Ensure clicks work properly
-      }}
+    // No position:fixed or bottom: right: here.
+    <motion.div
+      className="chat-wrapper flex flex-col w-full h-full"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
     >
-      <MDBRow className="d-flex justify-content-center">
-        <MDBCol>
-          <MDBCard id="chat2" style={{ borderRadius: "15px", zIndex: 9999 }}>
-            <MDBCardHeader className="d-flex justify-between p-3 bg-gray-800 text-white">
-              <h5 className="mb-0">Near AI Assistant</h5>
-              <button
-                className="text-white hover:text-red-400"
-                onClick={() => setMessageGroups([])}
-              >
-                ✖
-              </button>
-            </MDBCardHeader>
-            <div className="ScrollbarsCustom native trackYVisible trackXVisible">
-              <div className="ScrollbarsCustom-Content">
-                <MDBCardBody style={{ zIndex: 9999 }}>
-                  {messageGroups.map((messageGroup) => (
-                    <div
-                      key={messageGroup.id}
-                      className={`d-flex flex-row ${
-                        messageGroup.author === "user"
-                          ? "justify-content-end"
-                          : "justify-content-start"
-                      } mb-4`}
-                      style={{ zIndex: 9999 }}
-                    >
-                      {messageGroup.author !== "user" && (
-                        <img
-                          src="https://img.freepik.com/free-vector/chatbot-chat-message-vectorart_78370-4104.jpg"
-                          alt="avatar AI"
-                          style={{ width: "45px", height: "100%", zIndex: 9999 }}
-                        />
-                      )}
-                      <div>
-                        {messageGroup.messages.map((message) => (
-                          <p
-                            key={message.id}
-                            className={`small p-2 ${
-                              messageGroup.author === "user"
-                                ? "me-3 text-white rounded-3 bg-blue-500"
-                                : "ms-3 rounded-3 bg-gray-200"
-                            }`}
-                            style={{
-                              whiteSpace: "pre-line",
-                              zIndex: 9999,
-                            }}
-                          >
-                            {message.content}
-                          </p>
-                        ))}
-                      </div>
-                      {messageGroup.author === "user" && (
-                        <img
-                          src="https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava3-bg.webp"
-                          alt="avatar user"
-                          style={{ width: "45px", height: "100%", zIndex: 9999 }}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </MDBCardBody>
+      <MDBCard className="chat-card flex flex-col w-full h-full">
+        <MDBCardHeader className="chat-header d-flex justify-content-between align-items-center">
+          <h5 className="mb-0 text-black">Near AI Assistant</h5>
+          {/* If you want a local close button, you can do so here. */}
+        </MDBCardHeader>
+
+        <MDBCardBody className="chat-body">
+          {messageGroups.map((group) => (
+            <div
+              key={group.id}
+              className={`d-flex mb-2 ${
+                group.author === "user" ? "justify-content-end" : "justify-content-start"
+              }`}
+            >
+              {group.author === "ai" && (
+                <img
+                  src="https://img.freepik.com/free-vector/chatbot-chat-message-vectorart_78370-4104.jpg"
+                  alt="AI"
+                  className="chat-avatar"
+                />
+              )}
+
+              <div className="chat-messages-container">
+                {group.messages.map((msg) => (
+                  <motion.p
+                    key={msg.id}
+                    className={`chat-bubble ${
+                      group.author === "user" ? "chat-bubble-user" : "chat-bubble-ai"
+                    }`}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    {msg.content}
+                  </motion.p>
+                ))}
               </div>
+
+              {group.author === "user" && (
+                <img
+                  src="https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava3-bg.webp"
+                  alt="User"
+                  className="chat-avatar"
+                />
+              )}
             </div>
-            <MDBCardFooter className="text-muted d-flex justify-content-start align-items-center p-3">
-              <img
-                src="https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava3-bg.webp"
-                alt="avatar 3"
-                style={{ width: "45px", height: "100%", zIndex: 9999 }}
-              />
-              <input
-                type="text"
-                className="form-control form-control-lg"
-                placeholder="Type message"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    onSubmitMessage();
-                  }
-                }}
-                style={{ zIndex: 9999 }}
-              />
-              <button
-                className="ms-3 btn btn-primary"
-                onClick={onSubmitMessage}
-                style={{ zIndex: 9999 }}
-              >
-                <MDBIcon fas icon="paper-plane" />
-              </button>
-            </MDBCardFooter>
-          </MDBCard>
-        </MDBCol>
-      </MDBRow>
-    </MDBContainer>
+          ))}
+        </MDBCardBody>
+
+        <MDBCardFooter className="chat-footer d-flex align-items-center">
+          <img
+            src="https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava3-bg.webp"
+            alt="User"
+            className="chat-avatar"
+          />
+          <input
+            type="text"
+            className="form-control form-control-lg ms-2"
+            placeholder="Type message"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSubmitMessage();
+            }}
+          />
+          <button className="btn btn-primary ms-2 text-[14px]" onClick={onSubmitMessage}>
+            Send
+          </button>
+        </MDBCardFooter>
+      </MDBCard>
+    </motion.div>
   );
 };
 

@@ -30,30 +30,21 @@ const Navbar = () => {
         }`}
       >
         <div className="max-w-7xl mx-auto px-8 flex justify-between items-center">
-          <div className="text-2xl font-bold text-white font-orbitron transition-all duration-500 hover:text-purple-400">
+          <Link 
+          href ="/"
+           className="text-2xl font-bold text-white font-orbitron transition-all duration-500 hover:text-purple-400">
             MemeCoin Agent
-          </div>
+         
+          </Link>
 
-          <ul className="flex space-x-6 text-white text-lg font-orbitron">
-            {/* Wallet Auth Buttons */}
-            {signedAccountId ? (
-              <div className="flex flex-col items-center">
-                <button className="btn btn-outline-danger" onClick={signOut}>
-                  Logout
-                </button>
-                <small className="text-gray-400">{signedAccountId}</small>
-              </div>
-            ) : (
-              <button className="btn btn-outline-primary" onClick={signIn}>
-                Login
-              </button>
-            )}
+          <ul className="flex space-x-8 text-white text-lg font-orbitron">
+            
 
             {/* Dashboard Link */}
             <li>
               <Link
                 href="/dashboard"
-                className="transition-all duration-300 hover:text-purple-400 hover:scale-105"
+                className="transition-all duration-300 hover:text-purple-400 hover:scale-105 m-auto"
               >
                 Dashboard
               </Link>
@@ -68,19 +59,32 @@ const Navbar = () => {
                 {isChatOpen ? "Close Chat" : "Open Chat"}
               </button>
             </li>
+            {/* Wallet Auth Buttons */}
+            {signedAccountId ? (
+              <div className="flex flex-col items-center">
+                <button className="btn btn-outline-danger" onClick={signOut}>
+                  Logout
+                </button>
+                <small className="text-gray-400">{signedAccountId}</small>
+              </div>
+            ) : (
+              <button className="btn btn-outline-primary" onClick={signIn}>
+                Login
+              </button>
+            )}
           </ul>
         </div>
       </nav>
 
       {/* Chatbot Sidebar */}
       <div
-        className={`fixed top-0 right-0 h-full w-80  shadow-lg transition-transform transform z-50 ${
+        className={`fixed top-0 right-0 h-full w-90  shadow-lg transition-transform transform z-50 ${
           isChatOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
         {/* Close Button */}
         <button
-          className="absolute top-2 right-2 text-gray-700 text-xl"
+          className="absolute top-2 right-2 text-black-800 text-2xl mr-7 z-50 mt-4"
           onClick={() => setIsChatOpen(false)}
         >
           ✖
