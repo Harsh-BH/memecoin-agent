@@ -204,10 +204,7 @@ Bot: 🛑 Game session ended.
 
 ---
 
-## 🤝 Collaboration
-For collaboration guidelines, refer to [COLLABORATION.md](./COLLABORATION.md).
 
----
 
 ## 📜 License
 MIT
