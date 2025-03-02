@@ -46,7 +46,35 @@ Additionally, it features:
 
 ### 🤖 5. AI Blockchain Chatbot
 - If the user sends a normal message (not starting with `"/"`), the bot calls `getBlockchainAnswer(text)` to respond with a **blockchain-related** answer.  
-- If the query isn’t blockchain-related, it politely declines.  
+- If the query isn’t blockchain-related, it politely declines.
+
+  ## 📂 Backend Folder Structure
+```
+backend/
+│── ai/
+│   │── config/               # AI model configurations
+│   │── src/                  # AI service source code
+│   │── venv/                 # Virtual environment for AI service
+│   │── .env                  # Environment variables for AI service
+│   │── requirements.txt       # Python dependencies
+│   │── pyproject.toml         # AI service project configuration
+│
+│── dist/                      # Compiled TypeScript files
+│── node_modules/               # Project dependencies
+│── src/
+│   │── aiChat.ts              # AI chatbot logic
+│   │── aiFeatures.ts          # AI-powered blockchain interactions
+│   │── huggingFaceStableDiffusion.ts  # AI meme generation
+│   │── miniGame.ts            # Blockchain mini-game logic
+│   │── nearIntegration.ts     # NEAR smart contract integration
+│   │── telegramBot.ts         # Main Telegram bot logic
+│
+│── .env                        # Backend environment variables
+│── package.json                 # Project metadata & dependencies
+│── package-lock.json             # Dependency lock file
+│── tsconfig.json                 # TypeScript configuration
+│── TelegramBot.md                # Documentation for Telegram bot
+```
 
 ---
 
@@ -92,7 +120,6 @@ DEBUG=False
 # Path to the config file for the model, agent etc
 GENERAL_CONFIG_PATH=config/general.yaml
 # -- APIS --
-# Oxylabs (Google Search)
 OPENAI_API_KEY="Openai Api token"
 
 # Near
@@ -101,8 +128,6 @@ NEAR_ACCOUNT_PRIVATE_KEY=
 NEAR_RPC_URL="https://rpc.testnet.pagoda.co"
 
 ```
-
-
 
 ### 4️⃣ Run the Bot
 ```bash
