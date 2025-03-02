@@ -144,7 +144,7 @@ npm run dev
 ```
 
 
-🔴 **[Read the Full Telegram Bot Setup Guide](./Near_Telegram_Bot.md)** 🔴  
+🔴 **[Read the Full Telegram Bot Setup Guide]([Telegram Bot README](./Near_Telegram_Bot.md).)** 🔴  
 
 ---
 
