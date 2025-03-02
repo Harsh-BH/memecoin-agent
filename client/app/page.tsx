@@ -1,16 +1,32 @@
-import React from 'react';
+"use client"
+import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Navbar from './components/Navbar';
 import CursorTrail from './components/CursorTrail';
 import { FaGithub } from 'react-icons/fa';
 import ScrollTimeline from "./components/Features"
+import Link from 'next/link';
+import LoadingScreen from './components/LoadingScreen';
 
 export default function HomePage() {
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    // 2) After 3 seconds, remove loading
+    const timer = setTimeout(() => setIsLoading(false), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
   const features = [
-    { title: "Feature One", description: "Description for feature one..." },
-    { title: "Feature Two", description: "Description for feature two..." },
-    { title: "Feature Three", description: "Description for feature three..." },
-    { title: "Feature Three", description: "Description for feature three..." },
+    { title: "Balance Tracking", description: "View real-time balance and transactions." },
+    { title: "Activity History", description: "Log of all interactions with the NEAR blockchain" },
+    { title: "AI Chatbot", description: "Users can query the chatbot for blockchain-related questions and interact with smart contracts." },
+   
   ];
   return (
     <>
@@ -55,7 +71,9 @@ export default function HomePage() {
             Where blockchain, AI, and social media merge into a futuristic dark realm.
           </p>
           <button className="group relative inline-flex items-center backdrop-blur-lg bg-white bg-opacity-10 text-white font-semibold py-3 px-8 rounded-full shadow-xl transition-transform duration-500 hover:scale-105 mr-8">
+             <Link href = "/dashboard" >
               Get Started
+              </Link>
               <svg
                 className="ml-3 h-6 w-6 transition-transform duration-500 group-hover:translate-x-2"
                 fill="none"
@@ -67,7 +85,7 @@ export default function HomePage() {
               </svg>
             </button>
             <a
-              href="https://github.com/your-repo-url"
+              href="https://github.com/Harsh-BH/memecoin-agent"
               target="_blank"
               rel="noopener noreferrer"
               className="group relative inline-flex items-center backdrop-blur-lg bg-white bg-opacity-10 text-white font-semibold py-3 px-8 rounded-full shadow-xl transition-transform duration-500 hover:scale-105"
@@ -194,7 +212,7 @@ export default function HomePage() {
 
       {/* Coin #2 */}
       <circle
-        cx="900"
+        cx="1000"
         cy="450"
         r="50"
         fill="url(#coinGradient)"
@@ -210,32 +228,33 @@ export default function HomePage() {
           keySplines="0.5 0 0.5 1; 0.5 0 0.5 1"
         />
       </circle>
-
-      {/* Coin #3 */}
       <circle
-        cx="600"
+        cx="1000"
         cy="100"
-        r="30"
+        r="45"
         fill="url(#coinGradient)"
         filter="url(#coinGlow)"
       >
+        {/* Animate position in a smooth up/down cycle */}
         <animate
-          attributeName="cx"
-          values="600;620;600"
-          dur="6s"
+          attributeName="cy"
+          values="200;160;200"
+          dur="4s"
           repeatCount="indefinite"
           calcMode="spline"
           keyTimes="0;0.5;1"
           keySplines="0.5 0 0.5 1; 0.5 0 0.5 1"
         />
       </circle>
+
+     
       {/* Add more circles as you like */}
     </svg>
   </div>
 
   <div className="max-w-5xl w-full px-4">
-    <h2 className="text-3xl font-bold text-center mb-8 text-gray-800 dark:text-white">
-      Timeline of Features
+    <h2 className="text-3xl font-bold text-center mb-8 text-white dark:text-white z-50">
+       Features
     </h2>
     {/* Use the imported timeline component here */}
     <ScrollTimeline features={features} />

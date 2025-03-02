@@ -84,6 +84,7 @@ export function useNearAnalyticsFromAccount(initialAccount: string = "") {
         setTotalSupply(Number(total));
 
         const bal = await contract.get_balance({ account });
+        console.log(bal)
         setBalance(Number(bal));
 
         const top = await contract.get_top_tipper();

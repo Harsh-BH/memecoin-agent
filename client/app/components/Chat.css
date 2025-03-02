@@ -1,67 +1,112 @@
-/* Chat.css */
-
-/* No .chat-widget-container with fixed, bottom, right, etc. */
-/* Just normal .chat-card, .chat-body, .chat-footer styles. */
-
+/* Chat container card */
 .chat-card {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    height: 100%;
-    border-radius: 10px;
-    overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  /* Subtle shadow and smooth transform for entire chat card */
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  transform: translateY(0);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.chat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Scrollable body with a gradient background */
+.chat-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  /* A subtle gradient background for the chat area */
+  background: linear-gradient(135deg, #fdfdfd 0%, #f7f7f7 100%);
+  /* optional: add a pattern or subtle texture if you like */
+}
+
+/* Footer pinned at bottom within the card */
+.chat-footer {
+  flex-shrink: 0;
+  background-color: #f1f1f1;
+  padding: 0.75rem;
+  border-top: 1px solid #ddd;
+}
+
+/* Chat avatars, bubbles, etc. */
+.chat-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Container for bubble groups */
+.chat-messages-container {
+  display: flex;
+  flex-direction: column;
+  /* Optional: a small gap between consecutive bubbles */
+  gap: 0.25rem;
+}
+
+/* Bubbles share these base styles */
+.chat-bubble {
+  max-width: 220px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 5px;
+  font-size: 1rem;
+  line-height: 1.3;
+  border-radius: 15px;
+  white-space: pre-line;
+  /* Fade/slide in animation for new messages */
+  animation: fadeSlideIn 0.3s ease forwards;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+/* Bubble from the user */
+.chat-bubble-user {
+  background-color: #007bff;
+  color: #fff;
+  align-self: flex-end;
+  border-top-right-radius: 0;
+}
+
+/* Bubble from the AI */
+.chat-bubble-ai {
+  background-color: #e2e2e2;
+  color: #333;
+  align-self: flex-start;
+  border-top-left-radius: 0;
+}
+
+/* Hover effect: scale up the bubble slightly */
+.chat-bubble:hover {
+  transform: scale(1.03);
+}
+
+/* Keyframe for new bubble fade/slide in */
+@keyframes fadeSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
   }
-  
-  /* Scrollable body */
-  .chat-body {
-    flex: 1;
-    overflow-y: auto;
-    background-color: #f9f9f9;
-    padding: 1rem;
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
-  
-  /* Footer pinned at bottom within the card */
-  .chat-footer {
-    flex-shrink: 0;
-    background-color: #f1f1f1;
-    padding: 0.75rem;
-    border-top: 1px solid #ddd;
-  }
-  
-  /* Chat avatars, bubbles, etc. */
-  .chat-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    object-fit: cover;
-  }
-  
-  .chat-messages-container {
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .chat-bubble {
-    max-width: 220px;
-    padding: 0.5rem;
-    margin-bottom: 5px;
-    font-size: 1rem;
-    line-height: 1.3;
-    border-radius: 15px;
-    white-space: pre-line;
-  }
-  
-  .chat-bubble-user {
-    background-color: #007bff;
-    color: #fff;
-    align-self: flex-end;
-    border-top-right-radius: 0;
-  }
-  
-  .chat-bubble-ai {
-    background-color: #e2e2e2;
-    color: #333;
-    align-self: flex-start;
-    border-top-left-radius: 0;
-  }
-  
+}
+
+/* Optional: style the close button in the chat header if needed */
+.btn-close {
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  outline: none;
+  color: #555;
+  transition: color 0.2s ease;
+}
+.btn-close:hover {
+  color: #000;
+}
