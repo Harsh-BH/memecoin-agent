@@ -95,7 +95,7 @@ cd memecoin-agent
 
 ### 2️⃣ Install Dependencies
 ```bash
-npm install  # Install backend dependencies
+cd backend && npm install  # Install backend dependencies
 cd client && npm install  # Install frontend dependencies
 ```
 
@@ -104,21 +104,37 @@ Create `.env` files in the respective directories:
 
 #### Backend `.env`
 ```ini
-NEAR_ACCOUNT_ID=your-account.testnet
-NEAR_ACCOUNT_PRIVATE_KEY=ed25519:...
-NEAR_CONTRACT_NAME=your-contract.testnet
-TELEGRAM_BOT_TOKEN=1234567:ABC-...
+TELEGRAM_BOT_TOKEN=7879958230:AAEnXWEVj9zfMdJOVSphXah2svHfxh99I2k
+NEAR_ACCOUNT_ID="XYZ.testnet"
+NEAR_ACCOUNT_PRIVATE_KEY=
+NEAR_CONTRACT_NAME=harsh21112005.testnet
+HF_API_TOKEN = "Hugging face token"
+PORT=3000 
+OPENAI_API_KEY = "Openai api token"
 ```
 
 #### AI Chatbot `.env` (Located in `backend/ai/.env`)
 ```ini
-OPENAI_API_KEY=sk-...
-HF_API_TOKEN=hf_...
+DEBUG=False
+# Path to the config file for the model, agent etc
+GENERAL_CONFIG_PATH=config/general.yaml
+# -- APIS --
+OPENAI_API_KEY="Openai Api token"
+
+# Near
+NEAR_ACCOUNT_ID="XYZ.testnet"
+NEAR_ACCOUNT_PRIVATE_KEY=
+NEAR_RPC_URL="https://rpc.testnet.pagoda.co"
 ```
 
-### 4️⃣ Running the Backend
+### 4️⃣ Running the Backend Chatbot
 ```bash
-npm run start-backend
+cd ai
+python -m venv venv #Create  Python Virtual environmnet
+venv/scripts/activate #For Windows to activate pyhton environment
+source venv/bin/activate #For Linux to activate pyhton environment
+pip install -r requirements.txt
+python src/main.py
 ```
 
 ### 5️⃣ Running the Frontend
@@ -126,6 +142,9 @@ npm run start-backend
 cd client
 npm run dev
 ```
+
+
+🔴 **[Read the Full Telegram Bot Setup Guide]([Telegram Bot README](./backend/TelegramBot.md).)** 🔴  
 
 ---
 
