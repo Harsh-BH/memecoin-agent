@@ -74,25 +74,45 @@ npm install
 ```
 
 ### 3️⃣ Configure Environment Variables
-Create a `.env` file with:
-```ini
-NEAR_ACCOUNT_ID=your-account.testnet
-NEAR_ACCOUNT_PRIVATE_KEY=ed25519:...
-NEAR_CONTRACT_NAME=your-contract.testnet
-TELEGRAM_BOT_TOKEN=1234567:ABC-...
+Create a `.env` file within backend folder:
 
-# If you use OpenAI or HF, set:
-# OPENAI_API_KEY=sk-...
-# HF_API_TOKEN=hf_...
+```ini
+TELEGRAM_BOT_TOKEN=7879958230:AAEnXWEVj9zfMdJOVSphXah2svHfxh99I2k
+NEAR_ACCOUNT_ID="XYZ.testnet"
+NEAR_ACCOUNT_PRIVATE_KEY=
+NEAR_CONTRACT_NAME=harsh21112005.testnet
+HF_API_TOKEN = "Hugging face token"
+PORT=3000 
+OPENAI_API_KEY = "Openai api token"
 ```
+
+Create a `.env` file within ai folder:
+```ini
+DEBUG=False
+# Path to the config file for the model, agent etc
+GENERAL_CONFIG_PATH=config/general.yaml
+# -- APIS --
+# Oxylabs (Google Search)
+OPENAI_API_KEY="Openai Api token"
+
+# Near
+NEAR_ACCOUNT_ID="XYZ.testnet"
+NEAR_ACCOUNT_PRIVATE_KEY=
+NEAR_RPC_URL="https://rpc.testnet.pagoda.co"
+
+```
+
+
 
 ### 4️⃣ Run the Bot
 ```bash
+cd backend
 npx tsc
 node dist/telegramBot.js
 ```
 Or directly:
 ```bash
+cd backend
 ts-node src/telegramBot.ts
 ```
 
@@ -148,7 +168,7 @@ Bot: 🛑 Game session ended.
 - **Commands:** Handles multiple NEAR interactions like minting, tipping, and NFT minting.
 - **AI Chat:** Calls AI chatbot for blockchain-related queries.
 
-### 🎨 `huggingFaceStableDiffusion.ts` or `openAIImage.ts`
+### 🎨 `huggingFaceStableDiffusion.ts`
 - Contains code to generate an image from a text prompt.
 - Uses Hugging Face’s stable diffusion endpoint or OpenAI DALL·E.
 
