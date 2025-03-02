@@ -33,6 +33,7 @@ const node_telegram_bot_api_1 = __importDefault(require("node-telegram-bot-api")
 const huggingFaceStableDiffusion_1 = require("./huggingFaceStableDiffusion");
 const near_api_js_1 = require("near-api-js");
 const aiChat_1 = require("./aiChat");
+const aiFeatures_1 = require("./aiFeatures");
 // ----- NEAR CONFIGURATION -----
 const nearConfig = {
     networkId: 'testnet',
@@ -41,18 +42,29 @@ const nearConfig = {
     helperUrl: 'https://helper.testnet.near.org',
     keyStore: new near_api_js_1.keyStores.InMemoryKeyStore(),
 };
-// Environment variables
 const ACCOUNT_ID = process.env.NEAR_ACCOUNT_ID;
-console.log("account id", ACCOUNT_ID);
 const PRIVATE_KEY = process.env.NEAR_ACCOUNT_PRIVATE_KEY;
 const DEFAULT_CONTRACT_ID = process.env.NEAR_CONTRACT_NAME;
-console.log("Default contract id", DEFAULT_CONTRACT_ID);
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+console.log("account id", ACCOUNT_ID);
+console.log("Default contract id", DEFAULT_CONTRACT_ID);
 // Setup NEAR keys
 const keyPair = near_api_js_1.KeyPair.fromString(PRIVATE_KEY);
 nearConfig.keyStore.setKey(nearConfig.networkId, ACCOUNT_ID, keyPair);
 // Initialize Telegram bot
 const bot = new node_telegram_bot_api_1.default(BOT_TOKEN, { polling: true });
+// Track whether the bot is in an “error/offline” state
+let botIsOffline = false;
+// If the bot encounters a polling error, we consider it “offline”
+bot.on('polling_error', (err) => {
+    console.error("Bot polling error:", err);
+    botIsOffline = true;
+});
+// If the bot is using webhooks, we can also listen for errors:
+bot.on('webhook_error', (err) => {
+    console.error("Bot webhook error:", err);
+    botIsOffline = true;
+});
 // We'll store user data about the last meme prompt if they want to mint it as NFT.
 const pendingNftRequests = {};
 // Global references so we can switch contract ID
@@ -84,7 +96,6 @@ async function initNear() {
 }
 // Re-initialize contract with a new contractId
 async function reinitContract(newContractId) {
-    // Reuse same account but point to new contract ID
     contractGlobal = new near_api_js_1.Contract(accountGlobal, newContractId, {
         viewMethods: ['get_balance', 'get_total_supply', 'get_top_tipper'],
         changeMethods: [
@@ -111,13 +122,28 @@ const simulateTyping = async (chatId, ms = 1500) => {
 };
 initNear()
     .then(() => {
+    // If we get here, NEAR is presumably connected, so the bot is "online"
+    botIsOffline = false;
     // ---------- Handle all incoming messages ----------
     bot.on('message', async (msg) => {
         const chatId = msg.chat.id;
         const text = (msg.text || '').trim();
         console.log("Received command:", text);
-        // NEW: /setContract <contractId> 
-        // Switch to a different contract ID
+        // If the bot encountered a previous error, we can warn the user (optional)
+        if (botIsOffline) {
+            await bot.sendMessage(chatId, "⚠️ Bot recently had a polling/webhook error, but I'm still trying to respond. If commands fail, I'm partially offline.");
+        }
+        // A special "/status" command that shows whether the bot is offline/online
+        if (text.startsWith('/status')) {
+            if (botIsOffline) {
+                await bot.sendMessage(chatId, "Bot is currently marked as OFFLINE (polling/webhook error).");
+            }
+            else {
+                await bot.sendMessage(chatId, "Bot is ONLINE and NEAR is connected.");
+            }
+            return;
+        }
+        // /setContract <contractId> => Switch contract
         if (text.startsWith('/setContract')) {
             const parts = text.split(' ');
             if (parts.length < 2) {
@@ -413,6 +439,11 @@ initNear()
                 await bot.sendMessage(chatId, 'Usage: /meme <prompt>');
                 return;
             }
+            // 1) Suggest expansions
+            const suggestions = await (0, aiFeatures_1.generateMemeSuggestions)(prompt);
+            if (suggestions && suggestions.length > 0) {
+                await bot.sendMessage(chatId, `🤖 *AI Suggestions* for your meme prompt:\n- ${suggestions.join('\n- ')}`, { parse_mode: 'Markdown' });
+            }
             try {
                 await simulateTyping(chatId, 2000);
                 // 1) Generate the meme image
@@ -442,6 +473,48 @@ initNear()
             }
             return;
         }
+        // ----- Context-Aware Example: "my last NFT" -----
+        if (/my last nft/i.test(text)) {
+            const memory = aiFeatures_1.userMemory[chatId] || {};
+            if (memory.lastMintedNFT) {
+                await bot.sendMessage(chatId, `Your last minted NFT metadata: ${memory.lastMintedNFT}`);
+            }
+            else {
+                await bot.sendMessage(chatId, "I don't see any record of your last minted NFT in memory.");
+            }
+            return;
+        }
+        // ----- Summaries of On-Chain Data: /activity <account> -----
+        if (text.startsWith('/activity')) {
+            const parts = text.split(' ');
+            if (parts.length < 2) {
+                await bot.sendMessage(chatId, 'Usage: /activity <account>');
+                return;
+            }
+            const accountParam = parts[1];
+            try {
+                await simulateTyping(chatId);
+                // 1) Fetch raw data from NEARBlocks
+                const url = `https://api-testnet.nearblocks.io/v1/account/${accountParam}/txns`;
+                const resp = await fetch(url);
+                if (!resp.ok) {
+                    throw new Error(`NEARBlocks fetch error: ${resp.status}`);
+                }
+                const data = await resp.json();
+                const rawTxs = data.txns || [];
+                // 2) Summarize with AI
+                const summary = await (0, aiFeatures_1.summarizeOnChainActivity)(rawTxs);
+                // 3) Return summary
+                await bot.sendMessage(chatId, `🤖 *AI Summary of ${accountParam} activity:* \n${summary}`, {
+                    parse_mode: 'Markdown',
+                });
+            }
+            catch (error) {
+                console.error('Error retrieving activity:', error);
+                await bot.sendMessage(chatId, '⚠️ Error retrieving activity or summarizing data.');
+            }
+            return;
+        }
         // 16) NFT MINT: /nft_mint <metadata> (Manual usage)
         if (text.startsWith('/nft_mint')) {
             const metadata = text.slice('/nft_mint'.length).trim();
@@ -462,6 +535,84 @@ initNear()
                 console.error('Error minting NFT:', error);
                 await bot.sendMessage(chatId, '⚠️ Error minting NFT.');
             }
+            return;
+        }
+        // In your telegramBot.ts, within the bot.on('message', ...) handler:
+        // ----- HELP COMMAND -----
+        if (text.startsWith('/help')) {
+            const helpMessage = `
+*Available Commands:*
+
+1. */help*  
+   Displays this help menu.
+
+2. */setContract <contractId>*  
+   Switches the bot to use a different NEAR contract.  
+   Example: \`/setContract your-other-contract.testnet\`
+
+3. */mint [depositAmount]*  
+   Mints tokens by attaching a deposit in yoctoNEAR (defaults to 0.01 NEAR).  
+   Example: \`/mint 1000000000000000000000000\`
+
+4. */balance <accountId>*  
+   Shows the token balance for a given account.  
+   Example: \`/balance alice.testnet\`
+
+5. */totalSupply*  
+   Shows the total supply of tokens from the current contract.
+
+6. */topTipper*  
+   Shows the account that has tipped the most cumulatively.
+
+7. */tip <receiver> <amount>*  
+   Transfers (tips) tokens from you to another account.  
+   Example: \`/tip bob.testnet 1000000000000000000000000\`
+
+8. */withdraw <amount>*  
+   Withdraws tokens back to your NEAR wallet.  
+   Example: \`/withdraw 500000000000000000000000\`
+
+9. */burn <amount>*  
+   Burns tokens from your balance, reducing total supply.
+
+10. */stake <amount>*  
+    Stakes your tokens (requires attaching a small deposit).  
+    Example: \`/stake 100000000000000000000000\`
+
+11. */unstake <amount>*  
+    Unstakes your staked tokens.
+
+12. */claim_rewards*  
+    Claims your staking rewards.
+
+13. */register_referral <referrer>*  
+    Registers a referrer for future mint bonuses.
+
+14. */propose <proposalDescription>*  
+    (Admin only) Creates a new governance proposal.
+
+15. */vote <proposalId> <true|false>*  
+    Votes on an existing proposal.  
+    Example: \`/vote 1 true\`
+
+16. */finalize_proposal <proposalId>*  
+    (Admin only) Finalizes a proposal once voting ends.
+
+17. */nft_mint <metadata>*  
+    Mints a stub NFT with the provided metadata (attaches deposit).
+
+18. */meme <prompt>*  
+    Generates a meme image from AI.  
+    Example: \`/meme cat dancing in neon city\`
+    You can choose to mint the resulting meme as an NFT!
+
+19. *(AI Chat)*  
+    If your message doesn’t start with a slash command, the bot treats it as a blockchain-related question and attempts an AI-based answer.
+
+*Tip:* You can also call \`/help\` any time to see this menu again.
+`;
+            // Send as Markdown
+            await bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
             return;
         }
         // ============= AI BLOCKCHAIN CHATBOT =============
@@ -523,4 +674,6 @@ initNear()
 })
     .catch((err) => {
     console.error('Error initializing NEAR connection:', err);
+    // If NEAR initialization fails, we can mark offline
+    botIsOffline = true;
 });
