@@ -6,9 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useNearAnalyticsFromAccount } from "./useNearAnalyticsFromAccount.client";
-// Remove top-level imports of wallet selector libraries:
-// import { setupWalletSelector } from "@near-wallet-selector/core";
-// import { setupMyNearWallet } from "@near-wallet-selector/my-near-wallet";
 import {
   ResponsiveContainer,
   LineChart,
@@ -19,6 +16,9 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+
+// 1) near-api-js for fetching native NEAR
+import { connect, keyStores } from "near-api-js";
 
 /** Utility: convert yoctoNEAR -> NEAR */
 function formatYoctoToNear(yoctoValue: string | number, fractionDigits = 5): string {
@@ -38,8 +38,10 @@ function getDateStringFromNs(blockTimestampNs: string | number): string {
   return `${year}-${month}-${day}`;
 }
 
+// Contract ID
 const CONTRACT_ID = "harsh21112005.testnet";
 
+// For activity feed items
 interface ActivityItem {
   fullData: unknown;
   id: string | number;
@@ -48,30 +50,49 @@ interface ActivityItem {
   date: string;
 }
 
+// For minted chart data
 interface MintChartData {
   day: string;
   minted: number;
 }
 
+// NEARBlocks transaction shape is not fully typed here
 type NearBlocksTransaction = unknown;
 
+// Helper to fetch the user’s native NEAR from RPC
+async function fetchNativeNearBalance(accountId: string): Promise<string> {
+  const near = await connect({
+    networkId: "testnet",
+    nodeUrl: "https://rpc.testnet.near.org",
+    walletUrl: "https://wallet.testnet.near.org",
+    helperUrl: "https://helper.testnet.near.org",
+    keyStore: new keyStores.BrowserLocalStorageKeyStore(),
+  });
+  const userAccount = await near.account(accountId);
+  const state = await userAccount.state();
+  // state.amount is yoctoNEAR
+  return state.amount;
+}
+
 export default function MemeCoinDashboard() {
-  // A. State for manual account input
-  const [manualAccount, setManualAccount] = useState("");
+  // 1) Rely on the connected wallet from the hook, no manual account
+  const { account, balance, totalSupply, topTipper, error } = useNearAnalyticsFromAccount();
 
-  // B. Analytics hook (auto-detects connected wallet)
-  const { account, balance, totalSupply, topTipper, error } =
-    useNearAnalyticsFromAccount(manualAccount);
+  // 2) Store user’s native NEAR
+  const [nativeNear, setNativeNear] = useState("0");
 
-  // C. Activity feed
+  // 3) Activity feed
   const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([]);
-  // D. Chart data for minted amounts by day
+  // 4) Chart data for minted amounts
   const [mintChartData, setMintChartData] = useState<MintChartData[]>([]);
-  // E. Selected transaction for popup
+  // 5) Selected transaction for popup
   const [selectedTx, setSelectedTx] = useState<NearBlocksTransaction | null>(null);
 
-  // F. Helper: wallet
-  // Dynamically import the wallet selector libraries so they only run client-side
+  // 6) Pagination: NEARBlocks `cursor`
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // 7) Dynamically import wallet selector only client-side
   async function getWallet() {
     if (typeof window === "undefined") return null;
     const { setupWalletSelector } = await import("@near-wallet-selector/core");
@@ -84,7 +105,7 @@ export default function MemeCoinDashboard() {
     return await selector.wallet("my-near-wallet");
   }
 
-  // G. Example: Mint
+  // 8) Example: Mint
   const handleMint = async () => {
     try {
       const wallet = await getWallet();
@@ -113,7 +134,7 @@ export default function MemeCoinDashboard() {
     }
   };
 
-  // H. Example: Transfer
+  // 9) Example: Transfer
   const handleTransfer = async () => {
     try {
       const wallet = await getWallet();
@@ -145,67 +166,115 @@ export default function MemeCoinDashboard() {
     }
   };
 
-  // I. Fetch transactions from NEARBlocks testnet
+  // 10) Fetch user’s native NEAR if `account` is detected
   useEffect(() => {
-    async function fetchTransactions() {
-      try {
-        if (!account) return;
-        const accountId = account;
-        const url = `https://api-testnet.nearblocks.io/v1/account/${accountId}/txns`;
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Error fetching txns: ${response.status}`);
+    async function loadNativeNear() {
+      if (account) {
+        try {
+          const yoctoBalance = await fetchNativeNearBalance(account);
+          setNativeNear(yoctoBalance);
+        } catch (err) {
+          console.error("Failed to fetch native NEAR balance:", err);
         }
-        const data = await response.json();
-        const rawTxs = data.txns || [];
+      }
+    }
+    loadNativeNear();
+  }, [account]);
 
-        const feed: ActivityItem[] = [];
-        const mintedByDay: Record<string, number> = {};
+  // 11) Helper to fetch transactions from NEARBlocks (with optional `cursor`)
+  async function fetchTransactions(cursorParam?: string, isLoadMore = false) {
+    if (!account) return;
+    try {
+      let url = `https://api-testnet.nearblocks.io/v1/account/${account}/txns`;
+      if (cursorParam) {
+        url += `?cursor=${cursorParam}`;
+      }
 
-        for (const tx of rawTxs) {
-          const action = tx.actions?.[0];
-          const actionType = action?.action || "UNKNOWN";
-          const rawDeposit = action?.deposit || "0";
-          const depositNear = parseFloat(formatYoctoToNear(rawDeposit, 5));
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Error fetching txns: ${response.status}`);
+      }
+      const data = await response.json();
+      const rawTxs = data.txns || [];
 
-          const blockTimeNs = tx.receipt_block?.block_timestamp;
-          const dateString = blockTimeNs ? getDateStringFromNs(blockTimeNs) : "N/A";
+      // Next cursor if any
+      const nextCursor = data.cursor || null;
+      setCursor(nextCursor);
 
-          let desc = `Action: ${actionType}, deposit: ${depositNear} NEAR`;
-          if (action?.method) {
-            desc += `, method: ${action.method}`;
-          }
+      // If not appending, we re-build minted chart data
+      const mintedByDay: Record<string, number> = isLoadMore ? {} : {};
 
-          feed.push({
-            fullData: tx,
-            id: tx.id,
-            type: actionType,
-            description: desc,
-            date: blockTimeNs
-              ? new Date(blockTimeNs / 1_000_000).toLocaleString()
-              : "N/A",
-          });
+      const newFeed: ActivityItem[] = [];
+      for (const tx of rawTxs) {
+        const action = tx.actions?.[0];
+        const actionType = action?.action || "UNKNOWN";
+        const rawDeposit = action?.deposit || "0";
+        const depositNear = parseFloat(formatYoctoToNear(rawDeposit, 5));
 
-          // If it's a "FUNCTION_CALL" + "method === mint", add to mintedByDay
+        const blockTimeNs = tx.receipt_block?.block_timestamp;
+        const dateString = blockTimeNs ? getDateStringFromNs(blockTimeNs) : "N/A";
+
+        let desc = `Action: ${actionType}, deposit: ${depositNear} NEAR`;
+        if (action?.method) {
+          desc += `, method: ${action.method}`;
+        }
+
+        newFeed.push({
+          fullData: tx,
+          id: tx.id,
+          type: actionType,
+          description: desc,
+          date: blockTimeNs
+            ? new Date(blockTimeNs / 1_000_000).toLocaleString()
+            : "N/A",
+        });
+
+        // If initial load, build minted chart
+        if (!isLoadMore) {
           if (actionType === "FUNCTION_CALL" && action?.method === "mint") {
             mintedByDay[dateString] = (mintedByDay[dateString] || 0) + depositNear;
           }
         }
+      }
 
+      if (isLoadMore) {
+        // append
+        setActivityFeed((prev) => [...prev, ...newFeed]);
+      } else {
+        // first load
+        setActivityFeed(newFeed);
+
+        // minted chart
         const mintedData = Object.keys(mintedByDay).map((day) => ({
           day,
           minted: Number(mintedByDay[day].toFixed(2)),
         }));
         mintedData.sort((a, b) => (a.day > b.day ? 1 : -1));
-
-        setActivityFeed(feed);
         setMintChartData(mintedData);
-      } catch (err) {
-        console.error("Failed to fetch transactions:", err);
       }
+    } catch (err) {
+      console.error("Failed to fetch transactions:", err);
+    } finally {
+      setIsLoadingMore(false);
     }
-    fetchTransactions();
+  }
+
+  // 12) On initial load or when `account` changes, fetch the first page
+  useEffect(() => {
+    if (account) {
+      setActivityFeed([]);
+      setMintChartData([]);
+      setCursor(null);
+      fetchTransactions(undefined, false);
+    }
   }, [account]);
+
+  // 13) “Load More” function
+  const handleLoadMore = () => {
+    if (!cursor) return;
+    setIsLoadingMore(true);
+    fetchTransactions(cursor, true);
+  };
 
   return (
     <div className="relative min-h-screen w-full bg-gradient-to-br from-[#1E1E2F] via-[#2D2F4C] to-[#1E1E2F] text-white">
@@ -232,29 +301,9 @@ export default function MemeCoinDashboard() {
       </div>
 
       <main className="relative z-10 p-2 max-w-7xl mx-auto space-y-8">
-        {/* Account Input */}
-        <div className="mt-28 max-w-md mx-auto">
-          <label htmlFor="account" className="block text-sm font-medium text-gray-300">
-            {account ? "Connected NEAR Account" : "Enter your NEAR Account"}
-          </label>
-          <input
-            type="text"
-            id="account"
-            value={manualAccount}
-            onChange={(e) => setManualAccount(e.target.value)}
-            placeholder="your-account.testnet"
-            className="mt-1 block w-full p-2 border border-gray-500 rounded-md bg-gray-800 text-white"
-          />
-          {account && (
-            <p className="mt-2 text-sm text-green-300">
-              Auto-detected account: {account}
-            </p>
-          )}
-        </div>
-
-        {/* Balance & Chart */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Balance Display */}
+        {/* Row: Left Card (Balances) + Right Card (Minted Chart) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-28">
+          {/* Left Card: Both Contract Token + Native NEAR */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -269,22 +318,37 @@ export default function MemeCoinDashboard() {
                   transition={{ duration: 0.7, delay: 0.2 }}
                   viewport={{ once: true }}
                 >
-                  <CardTitle className="text-purple-300">Current Balance</CardTitle>
+                  <CardTitle className="text-purple-300">Your Balances</CardTitle>
                 </motion.div>
               </CardHeader>
               <CardContent>
+                {/* Contract Token Balance */}
                 <motion.p
-                  className="text-3xl font-extrabold text-purple-200 mb-4"
+                  className="text-2xl font-extrabold text-purple-200 mb-2"
                   initial={{ opacity: 0, scale: 0.8 }}
                   whileInView={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.7, delay: 0.3 }}
                   viewport={{ once: true }}
                 >
+                  Contract Token:{" "}
                   {balance !== null
-                    ? `${formatYoctoToNear(balance)} NEAR`
+                    ? `${formatYoctoToNear(balance)} Tokens`
                     : "Loading..."}
                 </motion.p>
-                <div className="flex space-x-2">
+
+                {/* Native NEAR Balance */}
+                <motion.p
+                  className="text-2xl font-extrabold text-orange-200 mb-4"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.7, delay: 0.4 }}
+                  viewport={{ once: true }}
+                >
+                  Native NEAR: {formatYoctoToNear(nativeNear)} NEAR
+                </motion.p>
+
+                {/* Buttons */}
+                <div className="flex space-x-2 mt-4">
                   <Button
                     variant="default"
                     className="bg-purple-600 hover:bg-purple-700 transform transition-transform hover:scale-105"
@@ -304,7 +368,7 @@ export default function MemeCoinDashboard() {
             </Card>
           </motion.div>
 
-          {/* Chart Display: Minted Data */}
+          {/* Right Card: Minted Chart */}
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -370,7 +434,8 @@ export default function MemeCoinDashboard() {
         </div>
 
         {/* Additional Analytics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12">
+          {/* Total Supply */}
           <Card className="bg-black/60 border border-purple-500/20 shadow-lg">
             <CardHeader>
               <CardTitle className="text-green-300">Total Supply</CardTitle>
@@ -378,11 +443,13 @@ export default function MemeCoinDashboard() {
             <CardContent>
               <p className="text-2xl font-bold text-green-300">
                 {totalSupply !== null
-                  ? `${formatYoctoToNear(totalSupply)} NEAR`
+                  ? `${formatYoctoToNear(totalSupply)} Tokens`
                   : "Loading..."}
               </p>
             </CardContent>
           </Card>
+
+          {/* Top Tipper */}
           <Card className="bg-black/60 border border-purple-500/20 shadow-lg">
             <CardHeader>
               <CardTitle className="text-yellow-300">Top Tipper</CardTitle>
@@ -390,18 +457,6 @@ export default function MemeCoinDashboard() {
             <CardContent>
               <p className="text-2xl font-bold text-yellow-300">
                 {topTipper || "N/A"}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="bg-black/60 border border-purple-500/20 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-blue-300">Your Account Balance</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-blue-300">
-                {balance !== null
-                  ? `${formatYoctoToNear(balance)} NEAR`
-                  : "Loading..."}
               </p>
             </CardContent>
           </Card>
@@ -446,6 +501,20 @@ export default function MemeCoinDashboard() {
                   <Separator className="my-2 bg-purple-600/40 transition-colors duration-300 group-hover:bg-purple-500" />
                 </motion.div>
               ))}
+
+              {/* Pagination / Load More */}
+              {cursor && (
+                <div className="text-center mt-6">
+                  <Button
+                    variant="default"
+                    onClick={handleLoadMore}
+                    disabled={isLoadingMore}
+                    className="bg-purple-700 hover:bg-purple-800"
+                  >
+                    {isLoadingMore ? "Loading..." : "Load More"}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
